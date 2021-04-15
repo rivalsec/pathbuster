@@ -20,9 +20,16 @@ Before starting scanning, the program checks the server's responses on random st
 This allows us to exclude a large number of false positives (for example, if the server responds to us 200 OK for all requests)
 And it allows you to find answers that differ from the recorded samples, even if the code was the same.
 
-## usage: 
+## Installation: 
 ```
-python3 pathbuster.py -u URLS_FILE -p PATHS_FILE 
+git clone https://github.com/rivalsec/pathbuster.git
+cd pathbuster
+pip3 install -r requirements.txt
+```
+
+## Basic usage:
+```
+python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist 
 ```
 
 ## options:
