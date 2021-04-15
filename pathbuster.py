@@ -206,10 +206,11 @@ def start_thread_pool(threads, worker):
 if __name__ == "__main__":
     err_table = dict()
     res_dir = "pathbuster-res"
-    parser = argparse.ArgumentParser(description='check one path on many hosts at a time, prevent ip ban on one host scan')
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description='multiple hosts web path scanner')
     parser.add_argument('-u', '--urls_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='urls file (base url)', required=True)
     parser.add_argument('-p', '--paths_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='file with paths to check', required=True)
-    parser.add_argument('-e', '--exclude_codes', type=str, help="Exclude codes (404,403 etc) default 404", default="404")
+    parser.add_argument('-e', '--exclude_codes', type=str, help="Exclude codes (404,403 etc)", default="404")
     parser.add_argument('-x', '--extensions', type=str, help="File extensions (try with each string)", default="")
     parser.add_argument('--proxy', type=str, help='proxy ip:port', default=None)
     parser.add_argument('--max_response_size', help='Maximum response size', default=250000)
@@ -217,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--threads', type=int, help='Number of threads', default=10)
     parser.add_argument('--random_samples', type=int, help='how many responses to random urls we collect for comparison (set 0 to disable preflight checks)', default=3)
     parser.add_argument('-H','--header', action='append', help="Add custom header (Header: content) you can set it multiple times")
-    parser.add_argument('--user_agent', type=str, help="", default="Mozilla/5.0 (compatible; pathbuster/0.1; https://github.com/rivalsec/pathbuster)")
+    parser.add_argument('--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; https://github.com/rivalsec/pathbuster)")
 
     args = parser.parse_args()
     if args.proxy:
