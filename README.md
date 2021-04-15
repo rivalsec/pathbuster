@@ -1,9 +1,12 @@
 # PathBuster - multiple hosts Web path scanner
 
 ## usage: 
+```
 python3 pathbuster.py -u URLS_FILE -p PATHS_FILE 
+```
 
 ## optional arguments:
+```
   -h, --help            show this help message and exit
 
   -u URLS_FILE, --urls_file URLS_FILE 
@@ -40,3 +43,4 @@ python3 pathbuster.py -u URLS_FILE -p PATHS_FILE
   --user_agent USER_AGENT
                         User agent 
                         default: Mozilla/5.0 (compatible; pathbuster/0.1;https://github.com/rivalsec/pathbuster)
+```
