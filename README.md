@@ -25,40 +25,46 @@ And it allows you to find answers that differ from the recorded samples, even if
 python3 pathbuster.py -u URLS_FILE -p PATHS_FILE 
 ```
 
-## optional arguments:
+## options:
 ```
-  -u URLS_FILE, --urls_file URLS_FILE 
-                        urls file
+usage: pathbuster.py [-h] -u URLS_FILE -p PATHS_FILE [-e EXCLUDE_CODES]
+                     [-x EXTENSIONS] [--proxy PROXY]
+                     [--max_response_size MAX_RESPONSE_SIZE]
+                     [--max_errors MAX_ERRORS] [--threads THREADS]
+                     [--random_samples RANDOM_SAMPLES] [-H HEADER]
+                     [--user_agent USER_AGENT]
 
-  -p PATHS_FILE, --paths_file PATHS_FILE 
-                        file with paths to check
+multiple hosts web path scanner
 
+optional arguments:
+  -h, --help            show this help message and exit
+  -u URLS_FILE, --urls_file URLS_FILE
+                        urls file (base url) (default: None)
+  -p PATHS_FILE, --paths_file PATHS_FILE
+                        paths wordlist (default: None)
   -e EXCLUDE_CODES, --exclude_codes EXCLUDE_CODES
-                        Exclude codes (404,403 etc) (default: 404)
-
+                        Exclude status codes, separated by commas (Example:
+                        404,403) (default: 404)
   -x EXTENSIONS, --extensions EXTENSIONS
-                        File extensions (try with each string)
-
+                        Extension list separated by commas (Example: php,asp)
+                        (default: )
   --proxy PROXY         proxy ip:port (default: None)
-
   --max_response_size MAX_RESPONSE_SIZE
-                        Maximum response size (default: 250000)
-
+                        Maximum response size in bytes (default: 250000)
   --max_errors MAX_ERRORS
                         Maximum errors before url exclude (default: 5)
-
-  --threads THREADS     Number of threads (default: 10)
-
+  --threads THREADS     Number of threads (keep number of threads less than
+                        the number of hosts) (default: 10)
   --random_samples RANDOM_SAMPLES
                         how many responses to random urls we collect for
                         comparison (set 0 to disable preflight checks)
                         (default: 3)
-
   -H HEADER, --header HEADER
-                        Add custom header (Header: content) you can set it
-                        multiple times
-
+                        Add custom HTTP request header, support multiple flags
+                        (Example: -H "Referer: example.com" -H "Accept: */*")
+                        (default: None)
   --user_agent USER_AGENT
-                        User agent 
-                        default: Mozilla/5.0 (compatible; pathbuster/0.1;https://github.com/rivalsec/pathbuster)
+                        User agent (default: Mozilla/5.0 (compatible;
+                        pathbuster/0.1;
+                        +https://github.com/rivalsec/pathbuster))
 ```
