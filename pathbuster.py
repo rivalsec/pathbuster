@@ -29,9 +29,11 @@ class RequestResult:
         else:
             self.location = None
 
+
     def add_meta(self, s):
         self.meta += s
-    
+
+
     def __str__(self):
         s = f"{self.status}\t{self.bodylen}\t{self.url}"
         if self.location:
@@ -40,14 +42,18 @@ class RequestResult:
             s += f"\t{self.meta}"
         return s
 
+
     def is_similar(self, other:'RequestResult'):
-        # TODO: what to do if we have redirect? body often small and depends on url length
-        diff_threshold = 5
         if self.status == other.status:
+            if other.location:
+                return True #do not compare bodys on redirects
+                #TODO: headers compare
+            diff_threshold = 5
             diff_pc = abs(self.bodylen - other.bodylen) / self.bodylen * 100 if self.bodylen != 0 else other.bodylen
             if  diff_pc < diff_threshold:
                 return True
         return False
+
 
 def random_str(length=30):
     """Generate a random string of fixed length """
@@ -130,6 +136,7 @@ def preflight_worker():
 
             save_res(res)
             # collect samples (status code, body length) for future comparison if response status of random url not excluded by settings
+            # TODO: headers compare
             if not status_excluded(res.status):
                 if url not in preflight_samples:
                     preflight_samples[url] = []
