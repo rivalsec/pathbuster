@@ -13,6 +13,9 @@ For convenience, the results are written to two files at once in the pathbuster-
 - file with hostname (all paths found for this host)
 - file with response code (file with all responses 200, 301, etc.)
 
+![image](https://user-images.githubusercontent.com/50343281/114876542-de8ab200-9e17-11eb-9c1c-78702fd2d4f1.png)
+
+
 Before starting scanning, the program checks the server's responses on random string and, if the response code is not excluded by the program settings, writes a sample (code and size) of the response for subsequent comparison.
 This allows us to exclude a large number of false positives (for example, if the server responds to us 200 OK for all requests)
 And it allows you to find answers that differ from the recorded samples, even if the code was the same.
