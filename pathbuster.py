@@ -229,9 +229,10 @@ if __name__ == "__main__":
 
     headers["User-Agent"] = args.user_agent
 
-    for h in args.header:
-        k, v = [x.strip() for x in h.split(':', maxsplit=1)]
-        headers[k] = v
+    if args.header:
+        for h in args.header:
+            k, v = [x.strip() for x in h.split(':', maxsplit=1)]
+            headers[k] = v
 
     exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
     extensions = ['']
