@@ -225,8 +225,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.proxy:
         proxies = {
-            'http': args.proxy,
-            'https': args.proxy
+            'http': 'http://' + args.proxy,
+            'https': 'https://' + args.proxy
         }
 
     headers["User-Agent"] = args.user_agent
