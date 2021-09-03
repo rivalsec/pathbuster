@@ -121,35 +121,27 @@ def preflight_worker():
     while True:
         with get_work_locker:
             try:
-                url = next(precheck_iter)
+                url, path = next(preflight_iter)
             except StopIteration:
                 return
-    
-        for i in range(args.random_samples):
-            rstr = random_str()
-            urlpath = f"{url}/{rstr}"
 
-            try:
-                res = process_url(urlpath)
-            except Exception as e:
-                lprint(str(e))
-                err_table[url] = args.max_errors
-                break
+        urlpath = f"{url}/{path}"
+        try:
+            res = process_url(urlpath)
+        except Exception as e:
+            err_table[url] = err_table.get(url, 0) + 1
+            lprint(str(e))
+            continue
 
-            save_res(res)
-            # collect samples (status code, body length) for future comparison if response status of random url not excluded by settings
-            # TODO: headers compare
-            if not status_excluded(res.status):
-                if url not in preflight_samples:
-                    preflight_samples[url] = []
+        # save_res(res)
+        # collect samples (status code, body length) for future comparison if response status of random url not excluded by settings
+        if res.status not in exclude_codes:
+            if url not in preflight_samples:
+                preflight_samples[url] = []
 
-                if len(preflight_samples[url]) == 0 or samples_diff(res, url):
-                    lprint(f"{res} status code not excluded, add to preflight samples")
-                    preflight_samples[url].append(res)
-
-
-def status_excluded(status_code: int):
-    return status_code in exclude_codes
+            if len(preflight_samples[url]) == 0 or samples_diff(res, url):
+                lprint(f"{res} status code not excluded, add to preflight samples")
+                preflight_samples[url].append(res)
 
 
 def samples_diff(res: RequestResult, url: str):
@@ -161,16 +153,19 @@ def samples_diff(res: RequestResult, url: str):
 
 
 def result_valid(res:RequestResult, url):
-    if not status_excluded(res.status):
-        # if status code not excluded compare res with preflight samples
-        if url in preflight_samples and any((True for x in preflight_samples[url] if x.status == res.status)): #end code to
-            if samples_diff(res, url):
-                #meta
-                res.add_meta(' (preflight differ)')
+    if args.ac:
+        if res.status not in exclude_codes:
+            # if status code not excluded compare res with preflight samples
+            if url in preflight_samples and any((True for x in preflight_samples[url] if x.status == res.status)): #end code to
+                if samples_diff(res, url):
+                    #meta
+                    res.add_meta(' (preflight differ)')
+                    return True
+            else:
                 return True
-        else:
+    else:
+        if res.status not in exclude_codes:
             return True
-    return False
 
 
 def worker():
@@ -218,7 +213,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_response_size', help='Maximum response size in bytes', default=250000)
     parser.add_argument('--max_errors', help='Maximum errors before url exclude', default=5)
     parser.add_argument('--threads', type=int, help='Number of threads (keep number of threads less than the number of hosts)', default=10)
-    parser.add_argument('--random_samples', type=int, help='how many responses to random urls we collect for comparison (set 0 to disable preflight checks)', default=3)
+    parser.add_argument('-ac', action='store_true', help='Automatically calibrate filtering options (default: false)')
     parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
     parser.add_argument('--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster)")
 
@@ -236,7 +231,11 @@ if __name__ == "__main__":
             k, v = [x.strip() for x in h.split(':', maxsplit=1)]
             headers[k] = v
 
-    exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
+    if args.exclude_codes:
+        exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
+    else:
+        exclude_codes = []
+
     extensions = ['']
     if args.extensions:
         extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
@@ -248,12 +247,20 @@ if __name__ == "__main__":
     if not os.path.exists(res_dir):
         os.mkdir(res_dir)
 
-    print("Pre-Flight check on random urls")
     preflight_samples = {} # for preflight results
-    precheck_iter = (x for x in urls)
-    start_thread_pool(args.threads, preflight_worker)
-
-    print("Pre-Flight ended, start main task")
+    if args.ac:
+        print("Collect auto-calibration samples...")
+        # auto calibration like in ffuf
+        acStrings = [
+            random_str(16),
+            random_str(16) + '/',
+            '.htaccess' + random_str(16),
+            'admin' + random_str(16) + '/'
+        ]
+        preflight_iter = work_prod(urls, acStrings)
+        start_thread_pool(args.threads, preflight_worker)
+    
+    print("Start main task")
     task_iter = work_prod(urls, args.paths_file)
     start_thread_pool(args.threads, worker)
 
