@@ -62,10 +62,7 @@ optional arguments:
                         Maximum errors before url exclude (default: 5)
   --threads THREADS     Number of threads (keep number of threads less than
                         the number of hosts) (default: 10)
-  --random_samples RANDOM_SAMPLES
-                        how many responses to random urls we collect for
-                        comparison (set 0 to disable preflight checks)
-                        (default: 3)
+  -ac                   Automatically calibrate filtering options (default: False)
   -H HEADER, --header HEADER
                         Add custom HTTP request header, support multiple flags
                         (Example: -H "Referer: example.com" -H "Accept: */*")
