@@ -63,7 +63,7 @@ def random_str(length=30):
     return ''.join(random.choice(letters) for i in range(length))
 
 
-def work_prod(urls, paths):
+def work_prod(urls, paths, extensions = ['']):
     for path in paths:
         path = path.strip().lstrip('/')
         if not path:
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         start_thread_pool(args.threads, preflight_worker)
     
     print("Start main task")
-    task_iter = work_prod(urls, args.paths_file)
+    task_iter = work_prod(urls, args.paths_file, extensions)
     start_thread_pool(args.threads, worker)
 
     args.paths_file.close()
