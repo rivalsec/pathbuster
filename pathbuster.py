@@ -257,6 +257,7 @@ if __name__ == "__main__":
             '.htaccess' + random_str(16),
             'admin' + random_str(16) + '/'
         ]
+        acStrings.extend( [ random_str(16) + '.' + ext for ext in extensions if ext] )
         preflight_iter = work_prod(urls, acStrings)
         start_thread_pool(args.threads, preflight_worker)
     
