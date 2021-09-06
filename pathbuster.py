@@ -254,6 +254,7 @@ if __name__ == "__main__":
         acStrings = [
             random_str(16),
             random_str(16) + '/',
+            '.' + random_str(16) + '/',
             '.htaccess' + random_str(16),
             'admin' + random_str(16) + '/'
         ]
