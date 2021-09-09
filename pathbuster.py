@@ -9,6 +9,7 @@ import string
 import random
 import os
 import urllib.parse
+import sys
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -20,11 +21,17 @@ headers = dict()
 
 
 class RequestResult:
-    def __init__(self, url, status, bodylen, headers, meta = ''):
+    def __init__(self, url, status, body, headers, meta = ''):
         self.base_url = None
         self.url = url
         self.status = status
-        self.bodylen = bodylen
+        if "Content-Length" in headers:
+            self.bodylen = int(headers["Content-Length"])
+        else:
+            self.bodylen = len(body)
+        strbody = body.decode('utf-8', errors='ignore')
+        self.bodywords = count_words(strbody)
+        self.bodylines = count_lines(strbody)
         self.meta = meta
         if 'location' in headers:
             self.location = headers['location']
@@ -37,7 +44,7 @@ class RequestResult:
 
 
     def __str__(self):
-        s = f"{self.status}\t{self.bodylen}\t{self.url}"
+        s = f"{self.url}\t{self.status}\tBytes:{self.bodylen}/Lines:{self.bodylines}/Words:{self.bodywords}"
         if self.location:
             s += f"\t-> {self.location}"
         if self.meta:
@@ -46,15 +53,8 @@ class RequestResult:
 
 
     def is_similar(self, other:'RequestResult'):
-        if self.status == other.status:
-            if other.location:
-                return True #do not compare bodys on redirects
-                #TODO: headers compare
-            diff_threshold = 5
-            diff_pc = abs(self.bodylen - other.bodylen) / self.bodylen * 100 if self.bodylen != 0 else other.bodylen
-            if  diff_pc < diff_threshold:
-                return True
-        return False
+        if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == self.bodylines:
+            return True
 
 
 def random_str(length=30):
@@ -81,25 +81,23 @@ def work_prod(urls, paths, extensions = ['']):
 def truncated_stream_res(s: requests.Response, max_size:int):
     readed = 0
     with BytesIO() as buf:
-        # for chunk in s.iter_content(1024):
-        while True:
-            chunk = s.raw.read(1024)
+        for chunk in s.iter_content(None, False):
             readed += buf.write(chunk)
-            if not chunk or readed > max_size:
+            if readed > max_size:
                 break
         r = buf.getvalue()
     return r
 
 
 def process_url(url):
-    with requests.get(url, headers=headers, timeout=timeout, verify=False, stream=True, allow_redirects=False, proxies=proxies) as s:
+    with requests.request(args.http_method, url, headers=headers, timeout=timeout, verify=False, stream=True, allow_redirects=False, proxies=proxies) as s:
         body = truncated_stream_res(s, args.max_response_size)
-        return RequestResult(url, s.status_code, len(body), s.headers)
+        return RequestResult(url, s.status_code, body, s.headers)
 
 
-def lprint(s):
+def lprint(s, **kwargs):
     with print_locker:
-        print(s)
+        print(s, **kwargs)
 
 
 def save_res(s:RequestResult, url = None):
@@ -130,7 +128,7 @@ def preflight_worker():
             res = process_url(urlpath)
         except Exception as e:
             err_table[url] = err_table.get(url, 0) + 1
-            lprint(str(e))
+            lprint(str(e), file=sys.stderr)
             continue
 
         # save_res(res)
@@ -140,7 +138,7 @@ def preflight_worker():
                 preflight_samples[url] = []
 
             if len(preflight_samples[url]) == 0 or samples_diff(res, url):
-                lprint(f"{res} status code not excluded, add to preflight samples")
+                lprint(f"{res} status code not excluded, add to preflight samples", file=sys.stderr)
                 preflight_samples[url].append(res)
 
 
@@ -200,11 +198,20 @@ def start_thread_pool(threads, worker):
         w.join()
 
 
+def count_lines(text: str):
+    return len(text.splitlines())
+
+
+def count_words(text: str):
+    return len(text.split(' '))
+
+
 if __name__ == "__main__":
     err_table = dict()
     res_dir = "pathbuster-res"
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='multiple hosts web path scanner')
+    parser.add_argument('-m', '--http_method', type=str, help='HTTP method to use', default='GET')
     parser.add_argument('-u', '--urls_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='urls file (base url)', required=True)
     parser.add_argument('-p', '--paths_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='paths wordlist', required=True)
     parser.add_argument('-e', '--exclude_codes', type=str, help="Exclude status codes, separated by commas (Example: 404,403)", default="404")
@@ -249,7 +256,7 @@ if __name__ == "__main__":
 
     preflight_samples = {} # for preflight results
     if args.ac:
-        print("Collect auto-calibration samples...")
+        print("Collect auto-calibration samples...", file=sys.stderr)
         # auto calibration like in ffuf
         acStrings = [
             random_str(16),
@@ -262,9 +269,9 @@ if __name__ == "__main__":
         preflight_iter = work_prod(urls, acStrings)
         start_thread_pool(args.threads, preflight_worker)
     
-    print("Start main task")
+    print("Start main task", file=sys.stderr)
     task_iter = work_prod(urls, args.paths_file, extensions)
     start_thread_pool(args.threads, worker)
 
     args.paths_file.close()
-    print('THE END')
+    print('THE END', file=sys.stderr)
