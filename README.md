@@ -44,31 +44,26 @@ usage: pathbuster.py [-h] -u URLS_FILE -p PATHS_FILE [-e EXCLUDE_CODES]
 multiple hosts web path scanner
 
 optional arguments:
-  -h, --help            show this help message and exit
+-h, --help            show this help message and exit
+  -m HTTP_METHOD, --http_method HTTP_METHOD
+                        HTTP method to use (default: GET)
   -u URLS_FILE, --urls_file URLS_FILE
                         urls file (base url) (default: None)
   -p PATHS_FILE, --paths_file PATHS_FILE
                         paths wordlist (default: None)
   -e EXCLUDE_CODES, --exclude_codes EXCLUDE_CODES
-                        Exclude status codes, separated by commas (Example:
-                        404,403) (default: 404)
+                        Exclude status codes, separated by commas (Example: 404,403) (default: 404)
   -x EXTENSIONS, --extensions EXTENSIONS
-                        Extension list separated by commas (Example: php,asp)
-                        (default: )
+                        Extension list separated by commas (Example: php,asp) (default: )
   --proxy PROXY         proxy ip:port (default: None)
   --max_response_size MAX_RESPONSE_SIZE
                         Maximum response size in bytes (default: 250000)
   --max_errors MAX_ERRORS
                         Maximum errors before url exclude (default: 5)
-  --threads THREADS     Number of threads (keep number of threads less than
-                        the number of hosts) (default: 10)
+  --threads THREADS     Number of threads (keep number of threads less than the number of hosts) (default: 10)
   -ac                   Automatically calibrate filtering options (default: False)
   -H HEADER, --header HEADER
-                        Add custom HTTP request header, support multiple flags
-                        (Example: -H "Referer: example.com" -H "Accept: */*")
-                        (default: None)
+                        Add custom HTTP request header, support multiple flags (Example: -H "Referer: example.com" -H "Accept: */*") (default: None)
   --user_agent USER_AGENT
-                        User agent (default: Mozilla/5.0 (compatible;
-                        pathbuster/0.1;
-                        +https://github.com/rivalsec/pathbuster))
+                        User agent (default: Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster))
 ```
