@@ -10,6 +10,7 @@ import random
 import os
 import urllib.parse
 import sys
+import time
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -65,17 +66,16 @@ def random_str(length=30):
 
 def work_prod(urls, paths, extensions = ['']):
     for path in paths:
-        path = path.strip().lstrip('/')
-        if not path:
-            continue
         for ext in extensions:
-            p = path
+            p = path.lstrip('/')
             if ext:
-                p += f".{ext}"
+                p += f".{ext.lstrip('.')}"
+            stats['path'] = p
             for url in urls:
+                stats['reqs_done'] += 1
                 if url in err_table and err_table[url] >= args.max_errors:
                     continue
-                yield (url , p)
+                yield (url.rstrip('/') , p)
             
 
 def truncated_stream_res(s: requests.Response, max_size:int):
@@ -187,6 +187,19 @@ def worker():
             save_res(res, url)
 
 
+def statworker(looptime = 5):
+    while True:
+        time.sleep(looptime)
+        time_passed = time.time() - stats['starttime']
+        req_left = stats['allreqs'] - stats['reqs_done']
+        vel = int(stats["reqs_done"] / time_passed * 60)  
+        try:
+            timeleft = req_left // vel
+        except ZeroDivisionError:
+            timeleft = 0
+        lprint(f'[Statistics] path: {stats["path"]}, {stats["reqs_done"]}/{stats["allreqs"]} requests, speed {vel} req/min (about {timeleft} min left)', file=sys.stderr)            
+
+
 def start_thread_pool(threads, worker):
     workers = []
     for i in range(threads):
@@ -223,6 +236,7 @@ if __name__ == "__main__":
     parser.add_argument('-ac', action='store_true', help='Automatically calibrate filtering options')
     parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
     parser.add_argument('--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster)")
+    parser.add_argument('--stats_interval', type=int, help="number of seconds to wait between showing a statistics update", default = 60)
 
     args = parser.parse_args()
     if args.proxy:
@@ -246,10 +260,12 @@ if __name__ == "__main__":
     extensions = ['']
     if args.extensions:
         extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
-    urls = []
-    for url in args.urls_file:
-        urls.append(url.strip().rstrip('/'))
+
+    urls = [l.strip() for l in args.urls_file]
     args.urls_file.close()
+
+    paths = [l.strip() for l in args.paths_file]
+    args.paths_file.close()
 
     if not os.path.exists(res_dir):
         os.mkdir(res_dir)
@@ -270,7 +286,18 @@ if __name__ == "__main__":
         start_thread_pool(args.threads, preflight_worker)
     
     print("Start main task", file=sys.stderr)
-    task_iter = work_prod(urls, args.paths_file, extensions)
+    task_iter = work_prod(urls, paths, extensions)
+    stats = {
+        "allreqs": len(urls) * len(paths) * len(extensions),
+        "reqs_done": 0,
+        "path": "",
+        "starttime": time.time(),
+    }
+    #stat only on main task
+    st = threading.Thread(target=statworker, name='StatThread', args=(args.stats_interval,))
+    st.setDaemon(True)
+    st.start()
+
     start_thread_pool(args.threads, worker)
 
     args.paths_file.close()
