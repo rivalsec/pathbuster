@@ -269,6 +269,13 @@ if __name__ == "__main__":
 
     if not os.path.exists(res_dir):
         os.mkdir(res_dir)
+    
+    stats = {
+        "allreqs": len(urls) * len(paths) * len(extensions),
+        "reqs_done": 0,
+        "path": "",
+        "starttime": time.time(),
+    }
 
     preflight_samples = {} # for preflight results
     if args.ac:
@@ -287,12 +294,7 @@ if __name__ == "__main__":
     
     print("Start main task", file=sys.stderr)
     task_iter = work_prod(urls, paths, extensions)
-    stats = {
-        "allreqs": len(urls) * len(paths) * len(extensions),
-        "reqs_done": 0,
-        "path": "",
-        "starttime": time.time(),
-    }
+
     #stat only on main task
     st = threading.Thread(target=statworker, name='StatThread', args=(args.stats_interval,))
     st.setDaemon(True)
