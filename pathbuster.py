@@ -11,6 +11,7 @@ import os
 import urllib.parse
 import sys
 import time
+from hashlib import md5
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -22,10 +23,12 @@ headers = dict()
 
 
 class RequestResult:
-    def __init__(self, url, status, body, headers, meta = ''):
+    def __init__(self, url, status, reason, body, headers, meta = ''):
         self.base_url = None
         self.url = url
         self.status = status
+        self.reason = reason
+        self.headers = headers
         if "Content-Length" in headers:
             self.bodylen = int(headers["Content-Length"])
         else:
@@ -38,6 +41,11 @@ class RequestResult:
             self.location = headers['location']
         else:
             self.location = None
+        up = urllib.parse.urlparse(url)
+        self.scheme = up[0]
+        self.host = up[1]
+        self.path_hash = md5str(up[2])
+        self.body = body
 
 
     def add_meta(self, s):
@@ -92,7 +100,7 @@ def truncated_stream_res(s: requests.Response, max_size:int):
 def process_url(url):
     with requests.request(args.http_method, url, headers=headers, timeout=timeout, verify=False, stream=True, allow_redirects=False, proxies=proxies) as s:
         body = truncated_stream_res(s, args.max_response_size)
-        return RequestResult(url, s.status_code, body, s.headers)
+        return RequestResult(url, s.status_code, s.reason, body, s.headers)
 
 
 def lprint(s, **kwargs):
@@ -102,12 +110,23 @@ def lprint(s, **kwargs):
 
 def save_res(s:RequestResult, url = None):
     if url:
-        sheme = urllib.parse.urlparse(url)[0]
-        h = urllib.parse.urlparse(url)[1]
-        fn = f"{res_dir}/{sheme}_{h}.txt"
+        fn = f'{res_dir}/{s.scheme}_{s.host}.txt'
         with print_locker:
-            with open(f"{res_dir}/_{s.status}.txt", "a") as f:
-                f.write(str(s) + "\n")
+            with open(f'{res_dir}/_{s.status}.txt', 'a') as f:
+                f.write(str(s) + '\n')
+        if args.store_response and s.bodylen:
+            site_dir = f'{res_dir}/{s.scheme}_{s.host}'
+            if not os.path.exists(site_dir):
+                os.mkdir(site_dir)
+            with open(f'{site_dir}/_index.txt', 'a') as f:
+                f.write(f'{s.path_hash}\t{s.url}\n')
+            with open(f'{site_dir}/{s.path_hash}.txt', 'wb') as f:
+                f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
+                for k,v in s.headers.items():
+                    f.write(f'{k}: {v}\n'.encode())
+                
+                f.write('\n'.encode())
+                f.write(s.body)
     else:
         fn = f"{res_dir}/_main.txt"
     with print_locker:
@@ -219,6 +238,10 @@ def count_words(text: str):
     return len(text.split(' '))
 
 
+def md5str(s):
+    return md5(s.encode()).hexdigest()
+
+
 if __name__ == "__main__":
     err_table = dict()
     res_dir = "pathbuster-res"
@@ -237,6 +260,7 @@ if __name__ == "__main__":
     parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
     parser.add_argument('--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster)")
     parser.add_argument('--stats_interval', type=int, help="number of seconds to wait between showing a statistics update", default = 60)
+    parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
 
     args = parser.parse_args()
     if args.proxy:
@@ -296,6 +320,9 @@ if __name__ == "__main__":
     task_iter = work_prod(urls, paths, extensions)
 
     #stat only on main task
+    stats['reqs_done'] = 0
+    stats['path'] = ''
+    stats['starttime'] = time.time()
     st = threading.Thread(target=statworker, name='StatThread', args=(args.stats_interval,))
     st.setDaemon(True)
     st.start()
