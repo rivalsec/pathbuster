@@ -34,17 +34,14 @@ python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist
 
 ## options:
 ```
-usage: pathbuster.py [-h] -u URLS_FILE -p PATHS_FILE [-e EXCLUDE_CODES]
-                     [-x EXTENSIONS] [--proxy PROXY]
-                     [--max_response_size MAX_RESPONSE_SIZE]
-                     [--max_errors MAX_ERRORS] [--threads THREADS]
-                     [--random_samples RANDOM_SAMPLES] [-H HEADER]
-                     [--user_agent USER_AGENT]
+usage: pathbuster.py [-h] [-m HTTP_METHOD] -u URLS_FILE -p PATHS_FILE [-e EXCLUDE_CODES] [-x EXTENSIONS] [--proxy PROXY]
+                     [--max_response_size MAX_RESPONSE_SIZE] [--max_errors MAX_ERRORS] [--threads THREADS] [-ac] [-H HEADER]
+                     [--user_agent USER_AGENT] [--stats_interval STATS_INTERVAL] [-sr]
 
 multiple hosts web path scanner
 
 optional arguments:
--h, --help            show this help message and exit
+  -h, --help            show this help message and exit
   -m HTTP_METHOD, --http_method HTTP_METHOD
                         HTTP method to use (default: GET)
   -u URLS_FILE, --urls_file URLS_FILE
@@ -63,7 +60,12 @@ optional arguments:
   --threads THREADS     Number of threads (keep number of threads less than the number of hosts) (default: 10)
   -ac                   Automatically calibrate filtering options (default: False)
   -H HEADER, --header HEADER
-                        Add custom HTTP request header, support multiple flags (Example: -H "Referer: example.com" -H "Accept: */*") (default: None)
+                        Add custom HTTP request header, support multiple flags (Example: -H "Referer: example.com" -H "Accept: */*")
+                        (default: None)
   --user_agent USER_AGENT
                         User agent (default: Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster))
+  --stats_interval STATS_INTERVAL
+                        number of seconds to wait between showing a statistics update (default: 60)
+  -sr, --store_response
+                        Store finded HTTP responses (default: False)
 ```
