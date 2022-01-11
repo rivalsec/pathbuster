@@ -257,7 +257,7 @@ if __name__ == "__main__":
     parser.add_argument('-x', '--extensions', type=str, help="Extension list separated by commas (Example: php,asp)", default="")
     parser.add_argument('--proxy', type=str, help='proxy ip:port', default=None)
     parser.add_argument('--max_response_size', help='Maximum response size in bytes', default=250000)
-    parser.add_argument('--max_errors', help='Maximum errors before url exclude', default=5)
+    parser.add_argument('--max_errors', type=int, help='Maximum errors before url exclude', default=5)
     parser.add_argument('--threads', type=int, help='Number of threads (keep number of threads less than the number of hosts)', default=10)
     parser.add_argument('-ac', action='store_true', help='Automatically calibrate filtering options')
     parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
