@@ -23,12 +23,13 @@ headers = dict()
 
 
 class RequestResult:
-    def __init__(self, url, status, reason, body, headers, meta = ''):
+    def __init__(self, url, status, reason, body, headers, parent_url, meta = ''):
         self.base_url = None
         self.url = url
         self.status = status
         self.reason = reason
         self.headers = headers
+        self.parent_url = parent_url
         if "Content-Length" in headers:
             self.bodylen = int(headers["Content-Length"])
         else:
@@ -97,10 +98,10 @@ def truncated_stream_res(s: requests.Response, max_size:int):
     return r
 
 
-def process_url(url):
+def process_url(url, parent = None):
     with requests.request(args.http_method, url, headers=headers, timeout=timeout, verify=False, stream=True, allow_redirects=False, proxies=proxies) as s:
         body = truncated_stream_res(s, args.max_response_size)
-        return RequestResult(url, s.status_code, s.reason, body, s.headers)
+        return RequestResult(url, s.status_code, s.reason, body, s.headers, parent_url=parent)
 
 
 def lprint(s, **kwargs):
@@ -108,30 +109,26 @@ def lprint(s, **kwargs):
         print(s, **kwargs)
 
 
-def save_res(s:RequestResult, url = None):
-    if url:
-        fn = f'{res_dir}/{s.scheme}_{s.host}.txt'
-        with print_locker:
-            with open(f'{res_dir}/_{s.status}.txt', 'a') as f:
-                f.write(str(s) + '\n')
-        if args.store_response and s.bodylen:
-            site_dir = f'{res_dir}/{s.scheme}_{s.host}'
-            if not os.path.exists(site_dir):
-                os.mkdir(site_dir)
-            with open(f'{site_dir}/_index.txt', 'a') as f:
-                f.write(f'{s.path_hash}\t{s.url}\n')
-            with open(f'{site_dir}/{s.path_hash}.txt', 'wb') as f:
-                f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
-                for k,v in s.headers.items():
-                    f.write(f'{k}: {v}\n'.encode())
-                
-                f.write('\n'.encode())
-                f.write(s.body)
-    else:
-        fn = f"{res_dir}/_main.txt"
+def save_res(s:RequestResult):
+    fn = f'{res_dir}/{s.scheme}_{s.host}.txt'
     with print_locker:
         with open(fn, "a") as f:
             f.write(str(s) + "\n")
+        with open(f'{res_dir}/_{s.status}.txt', 'a') as f:
+            f.write(str(s) + '\n')
+    if args.store_response and s.bodylen:
+        site_dir = f'{res_dir}/{s.scheme}_{s.host}'
+        if not os.path.exists(site_dir):
+            os.mkdir(site_dir)
+        with print_locker:
+            with open(f'{site_dir}/_index.txt', 'a') as f:
+                f.write(f'{s.path_hash}\t{s.url}\n')
+        with open(f'{site_dir}/{s.path_hash}.txt', 'wb') as f:
+            f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
+            for k,v in s.headers.items():
+                f.write(f'{k}: {v}\n'.encode())
+            f.write('\n'.encode())
+            f.write(s.body)
 
 
 def preflight_worker():
@@ -142,9 +139,8 @@ def preflight_worker():
             except StopIteration:
                 return
 
-        urlpath = f"{url}/{path}"
         try:
-            res = process_url(urlpath)
+            res = process_url(f'{url}/{path}', url)
         except Exception as e:
             err_table[url] = err_table.get(url, 0) + 1
             lprint(str(e), file=sys.stderr)
@@ -169,12 +165,12 @@ def samples_diff(res: RequestResult, url: str):
     return True
 
 
-def result_valid(res:RequestResult, url):
+def result_valid(res:RequestResult):
     if args.ac:
         if res.status not in exclude_codes:
             # if status code not excluded compare res with preflight samples
-            if url in preflight_samples and any((True for x in preflight_samples[url] if x.status == res.status)): #end code to
-                if samples_diff(res, url):
+            if res.parent_url in preflight_samples and any((True for x in preflight_samples[res.parent_url] if x.status == res.status)):
+                if samples_diff(res, res.parent_url):
                     #meta
                     res.add_meta(' (preflight differ)')
                     return True
@@ -185,6 +181,23 @@ def result_valid(res:RequestResult, url):
             return True
 
 
+def worker_process(url, parent, redirect_count = 0):
+    try:
+        res = process_url(url, parent)
+    except Exception as e:
+        err_table[url] = err_table.get(url, 0) + 1
+        lprint(str(e))
+        return
+
+    if result_valid(res):
+        lprint(f"{res}")
+        save_res(res)
+        # follow host redirects on valid results
+        if res.location and args.follow_redirects and urllib.parse.urlparse(res.location).netloc == res.host and redirect_count < args.max_redirects:
+            redirect_count += 1
+            worker_process(res.location, parent, redirect_count)
+
+
 def worker():
     while True:
         with get_work_locker:
@@ -192,18 +205,8 @@ def worker():
                 url, path = next(task_iter)
             except StopIteration:
                 return
-
         urlpath = f"{url}/{path}"
-        try:
-            res = process_url(urlpath)
-        except Exception as e:
-            err_table[url] = err_table.get(url, 0) + 1
-            lprint(str(e))
-            continue
-
-        if result_valid(res, url):
-            lprint(f"{res}")
-            save_res(res, url)
+        worker_process(urlpath, url)
 
 
 def statworker(looptime = 5):
@@ -261,6 +264,8 @@ if __name__ == "__main__":
     parser.add_argument('--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster)")
     parser.add_argument('--stats_interval', type=int, help="number of seconds to wait between showing a statistics update", default = 60)
     parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
+    parser.add_argument('-f', '--follow_redirects', action='store_true', help='Follow HTTP redirects (same host only)')
+    parser.add_argument('-maxr', '--max_redirects', type=int, help='Max number of redirects to follow', default=5)
 
     args = parser.parse_args()
     if args.proxy:
