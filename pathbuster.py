@@ -184,9 +184,9 @@ def result_valid(res:RequestResult):
 def worker_process(url, parent, redirect_count = 0):
     try:
         res = process_url(url, parent)
-    except Exception as e:
+    except requests.exceptions.RequestException as e:
         err_table[url] = err_table.get(url, 0) + 1
-        lprint(str(e))
+        #lprint(str(e))
         return
 
     if result_valid(res):
