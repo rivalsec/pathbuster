@@ -193,9 +193,14 @@ def worker_process(url, parent, redirect_count = 0):
         lprint(f"{res}")
         save_res(res)
         # follow host redirects on valid results
-        if res.location and args.follow_redirects and urllib.parse.urlparse(res.location).netloc == res.host and redirect_count < args.max_redirects:
-            redirect_count += 1
-            worker_process(res.location, parent, redirect_count)
+        if res.location and args.follow_redirects and redirect_count < args.max_redirects:
+            if res.location.startswith('http://') or res.location.startswith('https://'):
+                location = res.location
+            else:
+                location = urllib.parse.urljoin(res.url, res.location)
+            if urllib.parse.urlparse(location).netloc == res.host:
+                redirect_count += 1
+                worker_process(location, parent, redirect_count)
 
 
 def worker():
