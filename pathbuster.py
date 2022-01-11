@@ -117,15 +117,19 @@ def save_res(s:RequestResult):
         with open(f'{res_dir}/_{s.status}.txt', 'a') as f:
             f.write(str(s) + '\n')
     if args.store_response and s.bodylen:
-        site_dir = f'{res_dir}/{s.scheme}_{s.host}'
+        site_dir = f'{res_dir}/responses/{s.scheme}_{s.host}'
+        res_fn = f'{site_dir}/{s.path_hash}.txt'
         if not os.path.exists(site_dir):
             os.mkdir(site_dir)
         with print_locker:
-            with open(f'{site_dir}/_index.txt', 'a') as f:
-                f.write(f'{s.path_hash}\t{s.url}\n')
-        with open(f'{site_dir}/{s.path_hash}.txt', 'wb') as f:
+            with open(f'{res_dir}/_index.txt', 'a') as f:
+                f.write(f'{res_fn}\t{s.url}\n')
+        with open(res_fn, 'wb') as f:
             f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
             for k,v in s.headers.items():
+                # remove becouse of nuclei parse error with passive mode
+                if k == 'Transfer-Encoding':
+                    continue
                 f.write(f'{k}: {v}\n'.encode())
             f.write('\n'.encode())
             f.write(s.body)
@@ -303,6 +307,8 @@ if __name__ == "__main__":
 
     if not os.path.exists(res_dir):
         os.mkdir(res_dir)
+    if args.store_response and not os.path.exists(res_dir + "/responses"):
+        os.mkdir(res_dir + "/responses")
     
     stats = {
         "allreqs": len(urls) * len(paths) * len(extensions),
