@@ -68,4 +68,8 @@ optional arguments:
                         number of seconds to wait between showing a statistics update (default: 60)
   -sr, --store_response
                         Store finded HTTP responses (default: False)
+  -f, --follow_redirects
+                        Follow HTTP redirects (same host only) (default: False)
+  -maxr MAX_REDIRECTS, --max_redirects MAX_REDIRECTS
+                        Max number of redirects to follow (default: 5)
 ```
