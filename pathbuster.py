@@ -202,8 +202,12 @@ def worker_process(url, parent, redirect_count = 0):
                 location = res.location
             else:
                 location = urllib.parse.urljoin(res.url, res.location)
-            if urllib.parse.urlparse(location).netloc == res.host:
+
+            loc_p = urllib.parse.urlparse(location)
+            loc_wo_query = f'{loc_p.scheme}://{loc_p.netloc}{loc_p.path}' 
+            if loc_p.netloc == res.host and loc_wo_query not in uniq_locs:
                 redirect_count += 1
+                uniq_locs.add(loc_wo_query)
                 worker_process(location, parent, redirect_count)
 
 
@@ -256,6 +260,7 @@ def md5str(s):
 
 if __name__ == "__main__":
     err_table = dict()
+    uniq_locs = set()
     res_dir = "pathbuster-res"
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='multiple hosts web path scanner')
