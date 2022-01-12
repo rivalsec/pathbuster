@@ -147,7 +147,7 @@ def preflight_worker():
             res = process_url(f'{url}/{path}', url)
         except Exception as e:
             err_table[url] = err_table.get(url, 0) + 1
-            lprint(str(e), file=sys.stderr)
+            # lprint(str(e), file=sys.stderr)
             continue
 
         # save_res(res)
