@@ -128,7 +128,7 @@ def save_res(s:RequestResult):
             f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
             for k,v in s.headers.items():
                 # remove becouse of nuclei parse error with passive mode
-                if k == 'Transfer-Encoding':
+                if k.title() == 'Transfer-Encoding':
                     continue
                 f.write(f'{k}: {v}\n'.encode())
             f.write('\n'.encode())
