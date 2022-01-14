@@ -67,7 +67,7 @@ python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist -sr
   --stats_interval STATS_INTERVAL
                         number of seconds to wait between showing a statistics update (default: 60)
   -sr, --store_response
-                        Store finded HTTP responses (default: False)
+                        Store found HTTP responses (default: False)
   -f, --follow_redirects
                         Follow HTTP redirects (same host only) (default: False)
   -maxr MAX_REDIRECTS, --max_redirects MAX_REDIRECTS
