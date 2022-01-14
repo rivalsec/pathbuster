@@ -32,15 +32,15 @@ pip3 install -r requirements.txt
 python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist 
 ```
 
+## Passive check with Nuclei
+```
+python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist -sr
+```
+![Снимок экрана 2022-01-14 в 09 46 44](https://user-images.githubusercontent.com/50343281/149454129-c3c262f3-d3e1-4125-bb87-c334839ac338.png)
+
+
 ## options:
 ```
-usage: pathbuster.py [-h] [-m HTTP_METHOD] -u URLS_FILE -p PATHS_FILE [-e EXCLUDE_CODES] [-x EXTENSIONS] [--proxy PROXY]
-                     [--max_response_size MAX_RESPONSE_SIZE] [--max_errors MAX_ERRORS] [--threads THREADS] [-ac] [-H HEADER]
-                     [--user_agent USER_AGENT] [--stats_interval STATS_INTERVAL] [-sr]
-
-multiple hosts web path scanner
-
-optional arguments:
   -h, --help            show this help message and exit
   -m HTTP_METHOD, --http_method HTTP_METHOD
                         HTTP method to use (default: GET)
