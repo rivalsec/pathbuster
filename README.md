@@ -34,9 +34,9 @@ python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist
 
 ## Passive check with Nuclei
 ```
-python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist -sr
+python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist --store_response
 ```
-![Снимок экрана 2022-01-14 в 09 46 44](https://user-images.githubusercontent.com/50343281/149454129-c3c262f3-d3e1-4125-bb87-c334839ac338.png)
+![image](https://user-images.githubusercontent.com/50343281/149454129-c3c262f3-d3e1-4125-bb87-c334839ac338.png)
 
 
 ## options:
