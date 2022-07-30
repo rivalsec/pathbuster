@@ -12,6 +12,7 @@ import urllib.parse
 import sys
 import time
 from hashlib import md5
+import re
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -181,6 +182,11 @@ def result_valid(res:RequestResult):
             else:
                 return True
     else:
+        if args.filter_regex and re.search(args.filter_regex, res.body.decode('utf-8', 'ignore')):
+            res.add_meta(f"{args.filter_regex} match")
+            return True
+        else:
+            return False
         if res.status not in exclude_codes:
             return True
 
@@ -269,6 +275,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--paths_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='paths wordlist', required=True)
     parser.add_argument('-e', '--exclude_codes', type=str, help="Exclude status codes, separated by commas (Example: 404,403)", default="404")
     parser.add_argument('-x', '--extensions', type=str, help="Extension list separated by commas (Example: php,asp)", default="")
+    parser.add_argument('-fe', '--filter-regex', type=str, help='filter response with specified regex (-fe admin)', default=None)
     parser.add_argument('--proxy', type=str, help='proxy ip:port', default=None)
     parser.add_argument('--max_response_size', help='Maximum response size in bytes', default=250000)
     parser.add_argument('--max_errors', type=int, help='Maximum errors before url exclude', default=5)
