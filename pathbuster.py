@@ -13,6 +13,8 @@ import sys
 import time
 from hashlib import md5
 import re
+import json
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -35,9 +37,9 @@ class RequestResult:
             self.bodylen = int(headers["Content-Length"])
         else:
             self.bodylen = len(body)
-        strbody = body.decode('utf-8', errors='ignore')
-        self.bodywords = count_words(strbody)
-        self.bodylines = count_lines(strbody)
+        self.strbody = body.decode('utf-8', errors='ignore')
+        self.bodywords = count_words(self.strbody)
+        self.bodylines = count_lines(self.strbody)
         self.meta = meta
         if 'location' in headers:
             self.location = headers['location']
@@ -66,6 +68,11 @@ class RequestResult:
     def is_similar(self, other:'RequestResult'):
         if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == self.bodylines:
             return True
+
+    def to_json(self):
+        jkeys = ['url', 'status', 'reason', 'parent_url', 'strbody', 'meta', 'scheme', 'host']
+        jres = { k:getattr(self,k) for k in jkeys}
+        return json.dumps(jres)
 
 
 def random_str(length=30):
@@ -200,7 +207,10 @@ def worker_process(url, parent, redirect_count = 0):
         return
 
     if result_valid(res):
-        lprint(f"{res}")
+        if args.json:
+            lprint(res.to_json())
+        else:
+            lprint(f"{res}")
         save_res(res)
         # follow host redirects on valid results
         if res.location and args.follow_redirects and redirect_count < args.max_redirects:
@@ -287,6 +297,7 @@ if __name__ == "__main__":
     parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
     parser.add_argument('-f', '--follow_redirects', action='store_true', help='Follow HTTP redirects (same host only)')
     parser.add_argument('-maxr', '--max_redirects', type=int, help='Max number of redirects to follow', default=5)
+    parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format, response is included')
 
     args = parser.parse_args()
     if args.proxy:
