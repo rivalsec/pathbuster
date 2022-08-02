@@ -40,6 +40,7 @@ python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist --store_respons
 
 
 ## options:
+```
   -h, --help            show this help message and exit
   -m HTTP_METHOD, --http_method HTTP_METHOD
                         HTTP method to use (default: GET)
