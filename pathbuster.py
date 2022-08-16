@@ -362,8 +362,7 @@ if __name__ == "__main__":
     stats['reqs_done'] = 0
     stats['path'] = ''
     stats['starttime'] = time.time()
-    st = threading.Thread(target=statworker, name='StatThread', args=(args.stats_interval,))
-    st.setDaemon(True)
+    st = threading.Thread(target=statworker, daemon=True, name='StatThread', args=(args.stats_interval,))
     st.start()
 
     start_thread_pool(args.threads, worker)
