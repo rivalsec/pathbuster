@@ -23,6 +23,9 @@ get_work_locker = threading.Lock()
 print_locker = threading.Lock()
 timeout = 30
 headers = dict()
+args = None
+exclude_codes = []
+extensions = ['']
 
 
 class RequestResult:
@@ -180,24 +183,24 @@ def samples_diff(res: RequestResult, url: str):
 
 
 def result_valid(res:RequestResult):
-    if args.ac:
-        if res.status not in exclude_codes:
-            # if status code not excluded compare res with preflight samples
-            if res.parent_url in preflight_samples and any((True for x in preflight_samples[res.parent_url] if x.status == res.status)):
-                if samples_diff(res, res.parent_url):
-                    #meta
-                    res.add_meta(' (preflight differ)')
-                    return True
-            else:
-                return True
-    else:
-        if args.filter_regex and re.search(args.filter_regex, res.body.decode('utf-8', 'ignore')):
-            res.add_meta(f"{args.filter_regex} match")
-            return True
+    if res.status in exclude_codes:
+        return False
+
+    if args.filter_regex:
+        if re.search(args.filter_regex, res.body.decode('utf-8', 'ignore')):
+            res.add_meta(f" {args.filter_regex} match")
         else:
             return False
-        if res.status not in exclude_codes:
-            return True
+
+    if args.ac:
+        if res.parent_url in preflight_samples and any((True for x in preflight_samples[res.parent_url] if x.status == res.status)):
+            if samples_diff(res, res.parent_url):
+                res.add_meta(' (preflight differ)')
+        else:
+            return False
+
+    #pass all filters
+    return True
 
 
 def worker_process(url, parent, redirect_count = 0):
@@ -276,10 +279,8 @@ def md5str(s):
     return md5(s.encode()).hexdigest()
 
 
-if __name__ == "__main__":
-    err_table = dict()
-    uniq_locs = set()
-    res_dir = "pathbuster-res"
+def parse_args(sys_args):
+    global args, proxies, headers, exclude_codes, extensions
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='multiple hosts web path scanner')
     parser.add_argument('-m', '--http_method', type=str, help='HTTP method to use', default='GET')
@@ -301,7 +302,8 @@ if __name__ == "__main__":
     parser.add_argument('-maxr', '--max_redirects', type=int, help='Max number of redirects to follow', default=5)
     parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format')
 
-    args = parser.parse_args()
+    args = parser.parse_args(sys_args)
+
     if args.proxy:
         proxies = {
             'http': 'http://' + args.proxy,
@@ -309,7 +311,6 @@ if __name__ == "__main__":
         }
 
     headers["User-Agent"] = args.user_agent
-
     if args.header:
         for h in args.header:
             k, v = [x.strip() for x in h.split(':', maxsplit=1)]
@@ -317,12 +318,17 @@ if __name__ == "__main__":
 
     if args.exclude_codes:
         exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
-    else:
-        exclude_codes = []
 
-    extensions = ['']
     if args.extensions:
         extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
+
+
+if __name__ == "__main__":
+    err_table = dict()
+    uniq_locs = set()
+    res_dir = "pathbuster-res"
+
+    parse_args(sys.argv[1:])
 
     urls = [l.strip() for l in args.urls_file]
     args.urls_file.close()

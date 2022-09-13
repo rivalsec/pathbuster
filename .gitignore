@@ -132,3 +132,4 @@ dmypy.json
 test/
 pathbuster-res/
 .vscode/
+.DS_Store
