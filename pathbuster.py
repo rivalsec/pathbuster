@@ -211,7 +211,7 @@ def worker_process(url, parent, redirect_count = 0):
             lprint(res.to_json())
         else:
             lprint(f"{res}")
-        save_res(res)
+            save_res(res)
         # follow host redirects on valid results
         if res.location and args.follow_redirects and redirect_count < args.max_redirects:
             if res.location.startswith('http://') or res.location.startswith('https://'):
