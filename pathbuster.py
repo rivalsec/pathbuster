@@ -281,6 +281,12 @@ def md5str(s):
 
 def parse_args(sys_args):
     global args, proxies, headers, exclude_codes, extensions
+        
+    proxies = None
+    headers = dict()
+    exclude_codes = []
+    extensions = ['']
+
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='multiple hosts web path scanner')
     parser.add_argument('-m', '--http_method', type=str, help='HTTP method to use', default='GET')
