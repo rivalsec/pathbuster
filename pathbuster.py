@@ -70,7 +70,9 @@ class RequestResult:
             return True
 
     def to_json(self):
-        jkeys = ['url', 'status', 'reason', 'parent_url', 'strbody', 'meta', 'scheme', 'host']
+        jkeys = ['url', 'status', 'reason', 'parent_url', 'meta', 'scheme', 'host']
+        if args.store_response:
+            jkeys.append('strbody')
         jres = { k:getattr(self,k) for k in jkeys}
         return json.dumps(jres)
 
@@ -135,7 +137,7 @@ def save_res(s:RequestResult):
         with open(res_fn, 'wb') as f:
             f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
             for k,v in s.headers.items():
-                # remove becouse of nuclei parse error with passive mode
+                # remove because of nuclei parse error with passive mode
                 if k.title() == 'Transfer-Encoding':
                     continue
                 f.write(f'{k.title()}: {v}\n'.encode())
@@ -297,7 +299,7 @@ if __name__ == "__main__":
     parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
     parser.add_argument('-f', '--follow_redirects', action='store_true', help='Follow HTTP redirects (same host only)')
     parser.add_argument('-maxr', '--max_redirects', type=int, help='Max number of redirects to follow', default=5)
-    parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format, response is included')
+    parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format')
 
     args = parser.parse_args()
     if args.proxy:
