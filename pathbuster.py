@@ -342,10 +342,11 @@ if __name__ == "__main__":
     paths = [l.strip() for l in args.paths_file]
     args.paths_file.close()
 
-    if not os.path.exists(res_dir):
-        os.mkdir(res_dir)
-    if args.store_response and not os.path.exists(res_dir + "/responses"):
-        os.mkdir(res_dir + "/responses")
+    if not args.json:
+        if not os.path.exists(res_dir):
+            os.mkdir(res_dir)
+        if args.store_response and not os.path.exists(res_dir + "/responses"):
+            os.mkdir(res_dir + "/responses")
     
     stats = {
         "allreqs": len(urls) * len(paths) * len(extensions),
