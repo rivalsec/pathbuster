@@ -55,10 +55,18 @@ def test_empty_e():
     assert(pathbuster.result_valid(res2) == True)
 
 
-# TO-DO:
-# def test_ac():
-#     pass
-
+def test_ac():
+    args = required_args.copy()
+    args.extend(['-ac'])
+    pathbuster.parse_args(args)
+    pf_res1 = pathbuster.RequestResult(url='http://example.com/test', status=200, reason='OK', body=b'1 2 3\n4 5', headers=[], parent_url='http://example.com')
+    pathbuster.preflight_samples = {
+        'http://example.com': [pf_res1,],
+    }
+    assert(pathbuster.result_valid(pf_res1) == False)
+    res2 = pathbuster.RequestResult(url='http://example.com/test2', status=200, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example.com')
+    assert(pathbuster.result_valid(res2) == True)
+    
 
 if __name__=="__main__":
     print(pytest.main())
