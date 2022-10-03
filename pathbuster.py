@@ -174,6 +174,14 @@ def preflight_worker():
                 preflight_samples[url].append(res)
 
 
+def samples_diff(res: RequestResult, url: str):
+    """is differ from ALL url samples?"""
+    for sample in preflight_samples[url]:
+        if res.is_similar(sample):
+            return False
+    return True
+
+
 def result_valid(res:RequestResult):
     if res.status in exclude_codes:
         return False
@@ -185,10 +193,11 @@ def result_valid(res:RequestResult):
             return False
 
     if args.ac:
-        for sample in preflight_samples[res.parent_url]:
-            if res.is_similar(sample):
-                return False
-
+        if samples_diff(res, res.parent_url):
+            res.add_meta(' (preflight differ)')
+        else:
+            return False
+                
     #pass all filters
     return True
 
