@@ -60,13 +60,19 @@ def test_ac():
     args.extend(['-ac'])
     pathbuster.parse_args(args)
     pf_res1 = pathbuster.RequestResult(url='http://example.com/test', status=200, reason='OK', body=b'1 2 3\n4 5', headers=[], parent_url='http://example.com')
+    pf_res2 = pathbuster.RequestResult(url='http://example.com/redirect', status=301, reason='OK', body=b'1 2 3\n4 5\n6 7', headers=[], parent_url='http://example.com')
     pathbuster.preflight_samples = {
-        'http://example.com': [pf_res1,],
+        'http://example.com': [pf_res1, pf_res2],
     }
     assert(pathbuster.result_valid(pf_res1) == False)
-    res2 = pathbuster.RequestResult(url='http://example.com/test2', status=200, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example.com')
+    assert(pathbuster.result_valid(pf_res2) == False)
+    res = pathbuster.RequestResult(url='http://example.com/test2', status=200, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example.com')
+    assert(pathbuster.result_valid(res) == True)
+    res2 = pathbuster.RequestResult(url='http://example.com/test22', status=301, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example.com')
     assert(pathbuster.result_valid(res2) == True)
-    
+    res3 = pathbuster.RequestResult(url='http://example2.com/test222', status=200, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example2.com')
+    assert(pathbuster.result_valid(res3) == True)
+
 
 if __name__=="__main__":
     print(pytest.main())
