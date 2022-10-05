@@ -69,7 +69,7 @@ class RequestResult:
 
 
     def is_similar(self, other:'RequestResult'):
-        if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == self.bodylines:
+        if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == other.bodylines:
             return True
 
     def to_json(self):
@@ -176,7 +176,7 @@ def preflight_worker():
 
 def samples_diff(res: RequestResult, url: str):
     """is differ from ALL url samples?"""
-    for sample in preflight_samples[url]:
+    for sample in preflight_samples.get(url, []):
         if res.is_similar(sample):
             return False
     return True
