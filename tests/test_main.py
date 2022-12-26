@@ -1,5 +1,4 @@
-import pathbuster
-import pytest
+import pathbuster.pathbuster as pathbuster
 
 
 required_args = [
@@ -72,7 +71,3 @@ def test_ac():
     assert(pathbuster.result_valid(res2) == True)
     res3 = pathbuster.RequestResult(url='http://example2.com/test222', status=200, reason='OK', body=b'1 2 3\n4 5 6', headers=[], parent_url='http://example2.com')
     assert(pathbuster.result_valid(res3) == True)
-
-
-if __name__=="__main__":
-    print(pytest.main())

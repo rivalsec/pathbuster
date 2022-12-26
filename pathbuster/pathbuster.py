@@ -328,7 +328,7 @@ def parse_args(sys_args):
         extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
 
 
-if __name__ == "__main__":
+def main():
     err_table = dict()
     uniq_locs = set()
     res_dir = "pathbuster-res"
@@ -383,3 +383,7 @@ if __name__ == "__main__":
 
     args.paths_file.close()
     print('THE END', file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

@@ -133,3 +133,4 @@ test/
 pathbuster-res/
 .vscode/
 .DS_Store
+dist/
