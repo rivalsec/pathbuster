@@ -14,22 +14,26 @@ import time
 from hashlib import md5
 import re
 import json
+from .config import Config
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-proxies = None
 get_work_locker = threading.Lock()
 print_locker = threading.Lock()
-timeout = 30
-headers = dict()
-args = None
-exclude_codes = []
-extensions = ['']
+preflight_iter = None
+task_iter = None
+preflight_samples = {} # for preflight results
+results = [] # for workers results
+err_table = dict()
+uniq_locs = set()
+
+#global settings
+conf = Config()
 
 
 class RequestResult:
-    def __init__(self, url, status, reason, body, headers, parent_url, meta = ''):
+    def __init__(self, url, status, reason, body, headers, parent_url, meta = None):
         self.base_url = None
         self.url = url
         self.status = status
@@ -43,7 +47,9 @@ class RequestResult:
         self.strbody = body.decode('utf-8', errors='ignore')
         self.bodywords = count_words(self.strbody)
         self.bodylines = count_lines(self.strbody)
-        self.meta = meta
+        self.meta = []
+        if meta:
+            self.meta.append(meta)
         if 'location' in headers:
             self.location = headers['location']
         else:
@@ -56,7 +62,7 @@ class RequestResult:
 
 
     def add_meta(self, s):
-        self.meta += s
+        self.meta.append(s)
 
 
     def __str__(self):
@@ -64,7 +70,8 @@ class RequestResult:
         if self.location:
             s += f"\t-> {self.location}"
         if self.meta:
-            s += f"\t{self.meta}"
+            meta = ', '.join(self.meta)
+            s += f"\t{meta}"
         return s
 
 
@@ -72,9 +79,9 @@ class RequestResult:
         if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == other.bodylines:
             return True
 
-    def to_json(self):
+    def to_json(self, store_response=False):
         jkeys = ['url', 'status', 'reason', 'parent_url', 'meta', 'scheme', 'host']
-        if args.store_response:
+        if store_response:
             jkeys.append('strbody')
         jres = { k:getattr(self,k) for k in jkeys}
         return json.dumps(jres)
@@ -86,16 +93,18 @@ def random_str(length=30):
     return ''.join(random.choice(letters) for i in range(length))
 
 
-def work_prod(urls, paths, extensions = ['']):
+def work_prod(urls, paths, extensions = [''], update_stats=False):
     for path in paths:
         for ext in extensions:
             p = path.lstrip('/')
             if ext:
                 p += f".{ext.lstrip('.')}"
-            stats['path'] = p
+            if update_stats:
+                stats['path'] = p
             for url in urls:
-                stats['reqs_done'] += 1
-                if url in err_table and err_table[url] >= args.max_errors:
+                if update_stats:
+                    stats['reqs_done'] += 1
+                if url in err_table and err_table[url] >= conf.max_errors:
                     continue
                 yield (url.rstrip('/') , p)
             
@@ -112,8 +121,8 @@ def truncated_stream_res(s: requests.Response, max_size:int):
 
 
 def process_url(url, parent = None):
-    with requests.request(args.http_method, url, headers=headers, timeout=timeout, verify=False, stream=True, allow_redirects=False, proxies=proxies) as s:
-        body = truncated_stream_res(s, args.max_response_size)
+    with requests.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, verify=False, stream=True, allow_redirects=False, proxies=conf.proxies) as s:
+        body = truncated_stream_res(s, conf.max_response_size)
         return RequestResult(url, s.status_code, s.reason, body, s.headers, parent_url=parent)
 
 
@@ -123,19 +132,19 @@ def lprint(s, **kwargs):
 
 
 def save_res(s:RequestResult):
-    fn = f'{res_dir}/{s.scheme}_{s.host}.txt'
+    fn = f'{conf.res_dir}/{s.scheme}_{s.host}.txt'
     with print_locker:
         with open(fn, "a") as f:
             f.write(str(s) + "\n")
-        with open(f'{res_dir}/_{s.status}.txt', 'a') as f:
+        with open(f'{conf.res_dir}/_{s.status}.txt', 'a') as f:
             f.write(str(s) + '\n')
-    if args.store_response and s.bodylen:
-        site_dir = f'{res_dir}/responses/{s.scheme}_{s.host}'
+    if conf.store_response and s.bodylen:
+        site_dir = f'{conf.res_dir}/responses/{s.scheme}_{s.host}'
         res_fn = f'{site_dir}/{s.path_hash}.txt'
         if not os.path.exists(site_dir):
             os.mkdir(site_dir)
         with print_locker:
-            with open(f'{res_dir}/_index.txt', 'a') as f:
+            with open(f'{conf.res_dir}/_index.txt', 'a') as f:
                 f.write(f'{res_fn}\t{s.url}\n')
         with open(res_fn, 'wb') as f:
             f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
@@ -163,9 +172,8 @@ def preflight_worker():
             # lprint(str(e), file=sys.stderr)
             continue
 
-        # save_res(res)
         # collect samples (status code, body length) for future comparison if response status of random url not excluded by settings
-        if res.status not in exclude_codes:
+        if res.status not in conf.exclude_codes:
             if url not in preflight_samples:
                 preflight_samples[url] = []
 
@@ -183,18 +191,19 @@ def samples_diff(res: RequestResult, url: str):
 
 
 def result_valid(res:RequestResult):
-    if res.status in exclude_codes:
+    if res.status in conf.exclude_codes:
         return False
 
-    if args.filter_regex:
-        if re.search(args.filter_regex, res.body.decode('utf-8', 'ignore')):
-            res.add_meta(f" {args.filter_regex} match")
+    if conf.filter_regex:
+        if re.search(conf.filter_regex, res.body.decode('utf-8', 'ignore')):
+            res.add_meta(f"{conf.filter_regex} match")
         else:
             return False
 
-    if args.ac:
+    # if ac
+    if len(preflight_samples) > 0:
         if samples_diff(res, res.parent_url):
-            res.add_meta(' (preflight differ)')
+            res.add_meta('(preflight differ)')
         else:
             return False
                 
@@ -211,13 +220,15 @@ def worker_process(url, parent, redirect_count = 0):
         return
 
     if result_valid(res):
-        if args.json:
-            lprint(res.to_json())
+        results.append(res)
+        if conf.json_print:
+            lprint(res.to_json(conf.store_response))
         else:
             lprint(f"{res}")
-            save_res(res)
+            if conf.res_dir:
+                save_res(res)
         # follow host redirects on valid results
-        if res.location and args.follow_redirects and redirect_count < args.max_redirects:
+        if res.location and conf.follow_redirects and redirect_count < conf.max_redirects:
             if res.location.startswith('http://') or res.location.startswith('https://'):
                 location = res.location
             else:
@@ -279,12 +290,7 @@ def md5str(s):
 
 
 def parse_args(sys_args):
-    global args, proxies, headers, exclude_codes, extensions
-        
-    proxies = None
-    headers = dict()
-    exclude_codes = []
-    extensions = ['']
+    global conf
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description='multiple hosts web path scanner')
@@ -293,47 +299,82 @@ def parse_args(sys_args):
     parser.add_argument('-p', '--paths_file', type=argparse.FileType(mode='r', encoding='UTF-8'), help='paths wordlist', required=True)
     parser.add_argument('-e', '--exclude_codes', type=str, help="Exclude status codes, separated by commas (Example: 404,403)", default="404")
     parser.add_argument('-x', '--extensions', type=str, help="Extension list separated by commas (Example: php,asp)", default="")
+    parser.add_argument('-ac', action='store_true', help='Automatically calibrate filtering options')
+    parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
+    parser.add_argument('-srd', '--store_response_dir', type=str, help='Output directory')
     parser.add_argument('-fe', '--filter-regex', type=str, help='filter response with specified regex (-fe admin)', default=None)
+    parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format')
+    parser.add_argument('-f', '--follow_redirects', action='store_true', help='Follow HTTP redirects (same host only)')
+    parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
     parser.add_argument('--proxy', type=str, help='proxy ip:port', default=None)
     parser.add_argument('--max_response_size', help='Maximum response size in bytes', default=250000)
     parser.add_argument('--max_errors', type=int, help='Maximum errors before url exclude', default=5)
     parser.add_argument('-t', '--threads', type=int, help='Number of threads (keep number of threads less than the number of hosts)', default=10)
-    parser.add_argument('-ac', action='store_true', help='Automatically calibrate filtering options')
-    parser.add_argument('-H','--header', action='append', help="Add custom HTTP request header, support multiple flags (Example: -H \"Referer: example.com\" -H \"Accept: */*\")")
     parser.add_argument('-ua', '--user_agent', type=str, help="User agent", default="Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster)")
     parser.add_argument('--stats_interval', type=int, help="number of seconds to wait between showing a statistics update", default = 60)
-    parser.add_argument('-sr', '--store_response', action='store_true', help='Store finded HTTP responses')
-    parser.add_argument('-f', '--follow_redirects', action='store_true', help='Follow HTTP redirects (same host only)')
     parser.add_argument('-maxr', '--max_redirects', type=int, help='Max number of redirects to follow', default=5)
-    parser.add_argument('-json', action='store_true', help='store output in JSONL(ines) format')
 
     args = parser.parse_args(sys_args)
 
     if args.proxy:
-        proxies = {
+        conf.proxies = {
             'http': 'http://' + args.proxy,
             'https': 'https://' + args.proxy
         }
 
-    headers["User-Agent"] = args.user_agent
+    conf.headers["User-Agent"] = args.user_agent
     if args.header:
         for h in args.header:
             k, v = [x.strip() for x in h.split(':', maxsplit=1)]
-            headers[k] = v
+            conf.headers[k] = v
 
     if args.exclude_codes:
-        exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
+        conf.exclude_codes = [int(x.strip()) for x in args.exclude_codes.strip(',').split(',')]
 
     if args.extensions:
-        extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
+        conf.extensions.extend([x.strip() for x in args.extensions.strip().strip(',').split(',')])
+
+    conf.max_errors = args.max_errors
+    conf.http_method = args.http_method
+    conf.max_response_size = args.max_response_size
+    conf.store_response = args.store_response
+    conf.filter_regex = args.filter_regex
+    conf.json_print = args.json
+    conf.follow_redirects = args.follow_redirects
+    conf.max_redirects = args.max_redirects
+    conf.res_dir = args.store_response_dir
+    return args
+
+
+def auto_calibration(urls, threads):
+    global preflight_iter
+    print("Collect auto-calibration samples...", file=sys.stderr)
+    # auto calibration like in ffuf
+    acStrings = [
+        random_str(16),
+        random_str(16) + '/',
+        '.' + random_str(16) + '/',
+        '.htaccess' + random_str(16),
+        'admin' + random_str(16) + '/'
+    ]
+    acStrings.extend( [ random_str(16) + '.' + ext for ext in conf.extensions if ext] )
+    preflight_iter = work_prod(urls, acStrings)
+    start_thread_pool(threads, preflight_worker)
+
+
+def fuzz(urls, paths, extensions, threads, ac=False ):
+    global task_iter
+    if ac:
+        auto_calibration(urls, threads)
+    task_iter = work_prod(urls, paths, extensions, True)
+    start_thread_pool(threads, worker)
+    #return all found results
+    return results
 
 
 def main():
-    err_table = dict()
-    uniq_locs = set()
-    res_dir = "pathbuster-res"
-
-    parse_args(sys.argv[1:])
+    global stats, task_iter
+    args = parse_args(sys.argv[1:])
 
     urls = [l.strip() for l in args.urls_file]
     args.urls_file.close()
@@ -342,46 +383,24 @@ def main():
     args.paths_file.close()
 
     if not args.json:
-        if not os.path.exists(res_dir):
-            os.mkdir(res_dir)
-        if args.store_response and not os.path.exists(res_dir + "/responses"):
-            os.mkdir(res_dir + "/responses")
-    
+        if not os.path.exists(conf.res_dir):
+            os.mkdir(conf.res_dir)
+        if args.store_response and not os.path.exists(conf.res_dir + "/responses"):
+            os.mkdir(conf.res_dir + "/responses")
+
+    #stat only on main task
     stats = {
-        "allreqs": len(urls) * len(paths) * len(extensions),
+        "allreqs": len(urls) * len(paths) * len(conf.extensions),
         "reqs_done": 0,
         "path": "",
         "starttime": time.time(),
     }
-
-    preflight_samples = {} # for preflight results
-    if args.ac:
-        print("Collect auto-calibration samples...", file=sys.stderr)
-        # auto calibration like in ffuf
-        acStrings = [
-            random_str(16),
-            random_str(16) + '/',
-            '.' + random_str(16) + '/',
-            '.htaccess' + random_str(16),
-            'admin' + random_str(16) + '/'
-        ]
-        acStrings.extend( [ random_str(16) + '.' + ext for ext in extensions if ext] )
-        preflight_iter = work_prod(urls, acStrings)
-        start_thread_pool(args.threads, preflight_worker)
-    
-    print("Start main task", file=sys.stderr)
-    task_iter = work_prod(urls, paths, extensions)
-
-    #stat only on main task
-    stats['reqs_done'] = 0
-    stats['path'] = ''
-    stats['starttime'] = time.time()
     st = threading.Thread(target=statworker, daemon=True, name='StatThread', args=(args.stats_interval,))
     st.start()
 
-    start_thread_pool(args.threads, worker)
+    #main task
+    fuzz(urls, paths, conf.extensions, args.threads, args.ac)
 
-    args.paths_file.close()
     print('THE END', file=sys.stderr)
 
 

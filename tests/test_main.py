@@ -8,12 +8,8 @@ required_args = [
 
 
 def test_filter_regex():
-    args = required_args.copy()
-    args.extend([
-        '-e', '301',
-        '-fe', '<title>Admin'
-        ])
-    pathbuster.parse_args(args)
+    pathbuster.conf.filter_regex = '<title>Admin'
+    pathbuster.conf.exclude_codes = [301,]
 
     res1 = pathbuster.RequestResult(url='http://example.com/test', status=200, reason='OK', body=b'<title>Member</title> etc', headers=[], parent_url=None)
     assert(pathbuster.result_valid(res1) == False)
@@ -43,9 +39,7 @@ def test_not_ac():
 
 
 def test_empty_e():
-    args = required_args.copy()
-    args.extend(['-e', ''])
-    pathbuster.parse_args(args)
+    pathbuster.conf.exclude_codes = []
     
     res1 = pathbuster.RequestResult(url='http://example.com/test', status=200, reason='OK', body=b'', headers=[], parent_url=None)
     assert(pathbuster.result_valid(res1) == True)
