@@ -14,7 +14,6 @@ import time
 from hashlib import md5
 import re
 import json
-from .config import Config
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -27,6 +26,27 @@ preflight_samples = {} # for preflight results
 results = [] # for workers results
 err_table = dict()
 uniq_locs = set()
+
+
+class Config:
+    def __init__(self):
+        #global settings
+        self.proxies = None
+        self.timeout = 30
+        self.headers = dict()
+        self.max_errors = 5
+        self.http_method = 'GET'
+        self.max_response_size = 250000
+        self.store_response = False
+        self.filter_regex = None
+        self.json_print = False
+        self.follow_redirects = False
+        self.max_redirects = 3
+        self.exclude_codes = [404,]
+        self.extensions = ['']
+        self.stats = None
+        self.res_dir = None
+
 
 #global settings
 conf = Config()
@@ -85,6 +105,7 @@ class RequestResult:
             jkeys.append('strbody')
         jres = { k:getattr(self,k) for k in jkeys}
         return json.dumps(jres)
+
 
 
 def random_str(length=30):
