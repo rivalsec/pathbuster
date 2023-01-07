@@ -5,15 +5,14 @@ import argparse
 import threading
 from requests.packages import urllib3
 from io import BytesIO
-import string
-import random
 import os
 import urllib.parse
 import sys
 import time
-from hashlib import md5
 import re
-import json
+from classes.config import Config
+from classes.response import Response
+from utils.common import random_str
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -28,90 +27,8 @@ err_table = dict()
 uniq_locs = set()
 
 
-class Config:
-    def __init__(self):
-        #global settings
-        self.proxies = None
-        self.timeout = 30
-        self.headers = dict()
-        self.max_errors = 5
-        self.http_method = 'GET'
-        self.max_response_size = 250000
-        self.store_response = False
-        self.filter_regex = None
-        self.json_print = False
-        self.follow_redirects = False
-        self.max_redirects = 3
-        self.exclude_codes = [404,]
-        self.extensions = ['']
-        self.stats = None
-        self.res_dir = None
-
-
 #global settings
 conf = Config()
-
-
-class RequestResult:
-    def __init__(self, url, status, reason, body, headers, parent_url, meta = None):
-        self.base_url = None
-        self.url = url
-        self.status = status
-        self.reason = reason
-        self.headers = headers
-        self.parent_url = parent_url
-        if "Content-Length" in headers:
-            self.bodylen = int(headers["Content-Length"])
-        else:
-            self.bodylen = len(body)
-        self.strbody = body.decode('utf-8', errors='ignore')
-        self.bodywords = count_words(self.strbody)
-        self.bodylines = count_lines(self.strbody)
-        self.meta = []
-        if meta:
-            self.meta.append(meta)
-        if 'location' in headers:
-            self.location = headers['location']
-        else:
-            self.location = None
-        up = urllib.parse.urlparse(url)
-        self.scheme = up[0]
-        self.host = up[1]
-        self.path_hash = md5str(up[2])
-        self.body = body
-
-
-    def add_meta(self, s):
-        self.meta.append(s)
-
-
-    def __str__(self):
-        s = f"{self.url}\t{self.status}\tBytes:{self.bodylen}/Lines:{self.bodylines}/Words:{self.bodywords}"
-        if self.location:
-            s += f"\t-> {self.location}"
-        if self.meta:
-            meta = ', '.join(self.meta)
-            s += f"\t{meta}"
-        return s
-
-
-    def is_similar(self, other:'RequestResult'):
-        if  self.status == other.status and self.bodywords == other.bodywords and self.bodylines == other.bodylines:
-            return True
-
-    def to_json(self, store_response=False):
-        jkeys = ['url', 'status', 'reason', 'parent_url', 'meta', 'scheme', 'host']
-        if store_response:
-            jkeys.append('strbody')
-        jres = { k:getattr(self,k) for k in jkeys}
-        return json.dumps(jres)
-
-
-
-def random_str(length=30):
-    """Generate a random string of fixed length """
-    letters = string.ascii_letters + string.digits
-    return ''.join(random.choice(letters) for i in range(length))
 
 
 def work_prod(urls, paths, extensions = [''], update_stats=False):
@@ -144,7 +61,7 @@ def truncated_stream_res(s: requests.Response, max_size:int):
 def process_url(url, parent = None):
     with requests.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, verify=False, stream=True, allow_redirects=False, proxies=conf.proxies) as s:
         body = truncated_stream_res(s, conf.max_response_size)
-        return RequestResult(url, s.status_code, s.reason, body, s.headers, parent_url=parent)
+        return Response(url, s.status_code, s.reason, body, s.headers, parent_url=parent)
 
 
 def lprint(s, **kwargs):
@@ -152,7 +69,7 @@ def lprint(s, **kwargs):
         print(s, **kwargs)
 
 
-def save_res(s:RequestResult):
+def save_res(s:Response):
     fn = f'{conf.res_dir}/{s.scheme}_{s.host}.txt'
     with print_locker:
         with open(fn, "a") as f:
@@ -203,7 +120,7 @@ def preflight_worker():
                 preflight_samples[url].append(res)
 
 
-def samples_diff(res: RequestResult, url: str):
+def samples_diff(res: Response, url: str):
     """is differ from ALL url samples?"""
     for sample in preflight_samples.get(url, []):
         if res.is_similar(sample):
@@ -211,7 +128,7 @@ def samples_diff(res: RequestResult, url: str):
     return True
 
 
-def result_valid(res:RequestResult):
+def result_valid(res:Response):
     if res.status in conf.exclude_codes:
         return False
 
@@ -246,8 +163,8 @@ def worker_process(url, parent, redirect_count = 0):
             lprint(res.to_json(conf.store_response))
         else:
             lprint(f"{res}")
-            if conf.res_dir:
-                save_res(res)
+        if conf.res_dir:
+            save_res(res)
         # follow host redirects on valid results
         if res.location and conf.follow_redirects and redirect_count < conf.max_redirects:
             if res.location.startswith('http://') or res.location.startswith('https://'):
@@ -296,18 +213,6 @@ def start_thread_pool(threads, worker):
 
     for w in workers:
         w.join()
-
-
-def count_lines(text: str):
-    return len(text.splitlines())
-
-
-def count_words(text: str):
-    return len(text.split(' '))
-
-
-def md5str(s):
-    return md5(s.encode()).hexdigest()
 
 
 def parse_args(sys_args):
@@ -364,12 +269,13 @@ def parse_args(sys_args):
     conf.follow_redirects = args.follow_redirects
     conf.max_redirects = args.max_redirects
     conf.res_dir = args.store_response_dir
+    conf.stats_interval = args.stats_interval
     return args
 
 
 def auto_calibration(urls, threads):
     global preflight_iter
-    print("Collect auto-calibration samples...", file=sys.stderr)
+    print("Collecting auto-calibration samples...", file=sys.stderr)
     # auto calibration like in ffuf
     acStrings = [
         random_str(16),
@@ -384,9 +290,27 @@ def auto_calibration(urls, threads):
 
 
 def fuzz(urls, paths, extensions, threads, ac=False ):
-    global task_iter
+    global task_iter, stats
+
+    if conf.res_dir:
+        if not os.path.exists(conf.res_dir):
+            os.mkdir(conf.res_dir)
+        if conf.store_response and not os.path.exists(conf.res_dir + "/responses"):
+            os.mkdir(conf.res_dir + "/responses")
+
     if ac:
         auto_calibration(urls, threads)
+
+    #stats
+    stats = {
+        "allreqs": len(urls) * len(paths) * len(conf.extensions),
+        "reqs_done": 0,
+        "path": "",
+        "starttime": time.time(),
+    }
+    st = threading.Thread(target=statworker, daemon=True, name='StatThread', args=(conf.stats_interval,))
+    st.start()
+
     task_iter = work_prod(urls, paths, extensions, True)
     start_thread_pool(threads, worker)
     #return all found results
@@ -403,23 +327,6 @@ def main():
     paths = [l.strip() for l in args.paths_file]
     args.paths_file.close()
 
-    if not args.json:
-        if not os.path.exists(conf.res_dir):
-            os.mkdir(conf.res_dir)
-        if args.store_response and not os.path.exists(conf.res_dir + "/responses"):
-            os.mkdir(conf.res_dir + "/responses")
-
-    #stat only on main task
-    stats = {
-        "allreqs": len(urls) * len(paths) * len(conf.extensions),
-        "reqs_done": 0,
-        "path": "",
-        "starttime": time.time(),
-    }
-    st = threading.Thread(target=statworker, daemon=True, name='StatThread', args=(args.stats_interval,))
-    st.start()
-
-    #main task
     fuzz(urls, paths, conf.extensions, args.threads, args.ac)
 
     print('THE END', file=sys.stderr)

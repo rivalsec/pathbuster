@@ -22,19 +22,17 @@ And it allows you to find answers that differ from the recorded samples, even if
 
 ## Installation: 
 ```
-git clone https://github.com/rivalsec/pathbuster.git
-cd pathbuster
-pip3 install -r requirements.txt
+pip3 install -U pathbuster
 ```
 
 ## Basic usage:
 ```
-python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist 
+pathbuster -u /path/to/URLS_FILE -p /path/to/wordlist -srd pathbuster-res
 ```
 
 ## Passive check with Nuclei
 ```
-python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist --store_response
+pathbuster -u /path/to/URLS_FILE -p /path/to/wordlist --store_response -srd pathbuster-res
 ```
 ![image](https://user-images.githubusercontent.com/50343281/149454129-c3c262f3-d3e1-4125-bb87-c334839ac338.png)
 
@@ -49,34 +47,32 @@ python3 pathbuster.py -u /path/to/URLS_FILE -p /path/to/wordlist --store_respons
   -p PATHS_FILE, --paths_file PATHS_FILE
                         paths wordlist (default: None)
   -e EXCLUDE_CODES, --exclude_codes EXCLUDE_CODES
-                        Exclude status codes, separated by commas (Example: 404,403)
-                        (default: 404)
+                        Exclude status codes, separated by commas (Example: 404,403) (default: 404)
   -x EXTENSIONS, --extensions EXTENSIONS
                         Extension list separated by commas (Example: php,asp) (default: )
+  -ac                   Automatically calibrate filtering options (default: False)
+  -sr, --store_response
+                        Store finded HTTP responses (default: False)
+  -srd STORE_RESPONSE_DIR, --store_response_dir STORE_RESPONSE_DIR
+                        Output directory (default: None)
   -fe FILTER_REGEX, --filter-regex FILTER_REGEX
                         filter response with specified regex (-fe admin) (default: None)
+  -json                 store output in JSONL(ines) format (default: False)
+  -f, --follow_redirects
+                        Follow HTTP redirects (same host only) (default: False)
+  -H HEADER, --header HEADER
+                        Add custom HTTP request header, support multiple flags (Example: -H "Referer: example.com" -H "Accept: */*") (default: None)
   --proxy PROXY         proxy ip:port (default: None)
   --max_response_size MAX_RESPONSE_SIZE
                         Maximum response size in bytes (default: 250000)
   --max_errors MAX_ERRORS
                         Maximum errors before url exclude (default: 5)
-  --threads THREADS     Number of threads (keep number of threads less than the number of
-                        hosts) (default: 10)
-  -ac                   Automatically calibrate filtering options (default: False)
-  -H HEADER, --header HEADER
-                        Add custom HTTP request header, support multiple flags (Example:
-                        -H "Referer: example.com" -H "Accept: */*") (default: None)
-  --user_agent USER_AGENT
-                        User agent (default: Mozilla/5.0 (compatible; pathbuster/0.1;
-                        +https://github.com/rivalsec/pathbuster))
+  -t THREADS, --threads THREADS
+                        Number of threads (keep number of threads less than the number of hosts) (default: 10)
+  -ua USER_AGENT, --user_agent USER_AGENT
+                        User agent (default: Mozilla/5.0 (compatible; pathbuster/0.1; +https://github.com/rivalsec/pathbuster))
   --stats_interval STATS_INTERVAL
-                        number of seconds to wait between showing a statistics update
-                        (default: 60)
-  -sr, --store_response
-                        Store finded HTTP responses (default: False)
-  -f, --follow_redirects
-                        Follow HTTP redirects (same host only) (default: False)
+                        number of seconds to wait between showing a statistics update (default: 60)
   -maxr MAX_REDIRECTS, --max_redirects MAX_REDIRECTS
                         Max number of redirects to follow (default: 5)
-  -json                 store output in JSONL(ines) format, response is included (default: False)
 ```
