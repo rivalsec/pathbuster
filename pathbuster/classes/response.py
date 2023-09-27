@@ -4,6 +4,13 @@ import urllib.parse
 
 
 class Response:
+    __slots__ = [
+        "base_url", "url", "status", "reason", "headers",
+        "parent_url", "bodylen", "strbody",
+        "bodywords", "bodylines", "meta", "location", 
+        "scheme", "host", "path_hash", "body"
+        ]
+    
     def __init__(self, url, status, reason, body, headers, parent_url, meta = None):
         self.base_url = None
         self.url = url

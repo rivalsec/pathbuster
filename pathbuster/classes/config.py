@@ -1,4 +1,11 @@
 class Config:
+    __slots__ = [
+        "proxies", "timeout", "headers", "max_errors", "http_method",
+        "max_response_size", "store_response", "filter_regex",
+        "json_print", "follow_redirects", "max_redirects", "exclude_codes", 
+        "extensions", "stats", "res_dir", "stats_interval"
+        ]
+    
     def __init__(self):
         #global settings
         self.proxies = None
