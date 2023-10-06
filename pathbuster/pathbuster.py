@@ -56,7 +56,7 @@ async def truncated_stream_res(s: aiohttp.ClientResponse, max_size:int):
 
 async def process_url(url, parent = None):
     async with aiohttp.ClientSession() as session:
-        async with session.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, ssl=False, proxy=conf.proxies['http']) as s:
+        async with session.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, ssl=False, proxy=conf.proxies) as s:
             body = await truncated_stream_res(s, conf.max_response_size)
             return Response(url, s.status, s.reason, body, s.headers, parent_url=parent)
 
@@ -145,9 +145,8 @@ def result_valid(res:Response):
 async def worker_process(url, parent, redirect_count = 0):
     try:
         res = await process_url(url, parent)
-    except aiohttp.ClientError as e:
+    except Exception as e:
         err_table[url] = err_table.get(url, 0) + 1
-        #lprint(str(e))
         return
 
     if result_valid(res):
@@ -233,10 +232,8 @@ def parse_args(sys_args):
     args = parser.parse_args(sys_args)
 
     if args.proxy:
-        conf.proxies = {
-            'http': 'http://' + args.proxy,
-            'https': 'https://' + args.proxy
-        }
+        conf.proxies = 'http://' + args.proxy
+
 
     conf.headers["User-Agent"] = args.user_agent
     if args.header:
