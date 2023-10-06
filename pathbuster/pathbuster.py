@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-import requests
+import asyncio
+import aiohttp
 import argparse
-import threading
-from requests.packages import urllib3
+from aiohttp import ClientSession
 from io import BytesIO
 import os
 import urllib.parse
@@ -13,12 +13,8 @@ import re
 from classes.config import Config
 from classes.response import Response
 from utils.common import random_str
+import threading
 
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-get_work_locker = threading.Lock()
-print_locker = threading.Lock()
 preflight_iter = None
 task_iter = None
 preflight_samples = {} # for preflight results
@@ -47,10 +43,10 @@ def work_prod(urls, paths, extensions = [''], update_stats=False):
                 yield (url.rstrip('/') , p)
             
 
-def truncated_stream_res(s: requests.Response, max_size:int):
+async def truncated_stream_res(s: aiohttp.ClientResponse, max_size:int):
     readed = 0
     with BytesIO() as buf:
-        for chunk in s.iter_content(None, False):
+        async for chunk in s.content.iter_chunked(1024):
             readed += buf.write(chunk)
             if readed > max_size:
                 break
@@ -58,32 +54,30 @@ def truncated_stream_res(s: requests.Response, max_size:int):
     return r
 
 
-def process_url(url, parent = None):
-    with requests.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, verify=False, stream=True, allow_redirects=False, proxies=conf.proxies) as s:
-        body = truncated_stream_res(s, conf.max_response_size)
-        return Response(url, s.status_code, s.reason, body, s.headers, parent_url=parent)
+async def process_url(url, parent = None):
+    async with aiohttp.ClientSession() as session:
+        async with session.request(conf.http_method, url, headers=conf.headers, timeout=conf.timeout, ssl=False, proxy=conf.proxies['http']) as s:
+            body = await truncated_stream_res(s, conf.max_response_size)
+            return Response(url, s.status, s.reason, body, s.headers, parent_url=parent)
 
 
 def lprint(s, **kwargs):
-    with print_locker:
-        print(s, **kwargs)
+    print(s, **kwargs)
 
 
 def save_res(s:Response):
     fn = f'{conf.res_dir}/{s.scheme}_{s.host}.txt'
-    with print_locker:
-        with open(fn, "a") as f:
-            f.write(str(s) + "\n")
-        with open(f'{conf.res_dir}/_{s.status}.txt', 'a') as f:
-            f.write(str(s) + '\n')
+    with open(fn, "a") as f:
+        f.write(str(s) + "\n")
+    with open(f'{conf.res_dir}/_{s.status}.txt', 'a') as f:
+        f.write(str(s) + '\n')
     if conf.store_response and s.bodylen:
         site_dir = f'{conf.res_dir}/responses/{s.scheme}_{s.host}'
         res_fn = f'{site_dir}/{s.path_hash}.txt'
         if not os.path.exists(site_dir):
             os.mkdir(site_dir)
-        with print_locker:
-            with open(f'{conf.res_dir}/_index.txt', 'a') as f:
-                f.write(f'{res_fn}\t{s.url}\n')
+        with open(f'{conf.res_dir}/_index.txt', 'a') as f:
+            f.write(f'{res_fn}\t{s.url}\n')
         with open(res_fn, 'wb') as f:
             f.write(f'HTTP/2 {s.status} {s.reason}\n'.encode())
             for k,v in s.headers.items():
@@ -95,16 +89,15 @@ def save_res(s:Response):
             f.write(s.body)
 
 
-def preflight_worker():
+async def preflight_worker():
     while True:
-        with get_work_locker:
-            try:
-                url, path = next(preflight_iter)
-            except StopIteration:
-                return
+        try:
+            url, path = next(preflight_iter)
+        except StopIteration:
+            return
 
         try:
-            res = process_url(f'{url}/{path}', url)
+            res = await process_url(f'{url}/{path}', url)
         except Exception as e:
             err_table[url] = err_table.get(url, 0) + 1
             # lprint(str(e), file=sys.stderr)
@@ -149,10 +142,10 @@ def result_valid(res:Response):
     return True
 
 
-def worker_process(url, parent, redirect_count = 0):
+async def worker_process(url, parent, redirect_count = 0):
     try:
-        res = process_url(url, parent)
-    except requests.exceptions.RequestException as e:
+        res = await process_url(url, parent)
+    except aiohttp.ClientError as e:
         err_table[url] = err_table.get(url, 0) + 1
         #lprint(str(e))
         return
@@ -177,18 +170,17 @@ def worker_process(url, parent, redirect_count = 0):
             if loc_p.netloc == res.host and loc_wo_query not in uniq_locs:
                 redirect_count += 1
                 uniq_locs.add(loc_wo_query)
-                worker_process(location, parent, redirect_count)
+                await worker_process(location, parent, redirect_count)
 
 
-def worker():
+async def worker():
     while True:
-        with get_work_locker:
-            try:
-                url, path = next(task_iter)
-            except StopIteration:
-                return
+        try:
+            url, path = next(task_iter)
+        except StopIteration:
+            return
         urlpath = f"{url}/{path}"
-        worker_process(urlpath, url)
+        await worker_process(urlpath, url)
 
 
 def statworker(looptime = 5):
@@ -204,15 +196,13 @@ def statworker(looptime = 5):
         lprint(f'[Statistics] path: {stats["path"]}, {stats["reqs_done"]}/{stats["allreqs"]} requests, speed {vel} req/min (about {timeleft} min left)', file=sys.stderr)            
 
 
-def start_thread_pool(threads, worker):
+async def start_async_pool(threads, worker):
     workers = []
     for i in range(threads):
-        t = threading.Thread(target=worker, name='worker {}'.format(i),args=())
-        t.start()
+        t = asyncio.create_task(worker())
         workers.append(t)
 
-    for w in workers:
-        w.join()
+    await asyncio.gather(*workers)
 
 
 def parse_args(sys_args):
@@ -273,7 +263,7 @@ def parse_args(sys_args):
     return args
 
 
-def auto_calibration(urls, threads):
+async def auto_calibration(urls, threads):
     global preflight_iter
     print("Collecting auto-calibration samples...", file=sys.stderr)
     # auto calibration like in ffuf
@@ -286,10 +276,10 @@ def auto_calibration(urls, threads):
     ]
     acStrings.extend( [ random_str(16) + '.' + ext for ext in conf.extensions if ext] )
     preflight_iter = work_prod(urls, acStrings)
-    start_thread_pool(threads, preflight_worker)
+    await start_async_pool(threads, preflight_worker)
 
 
-def fuzz(urls, paths, extensions, threads, ac=False ):
+async def fuzz(urls, paths, extensions, threads, ac=False ):
     global task_iter, stats
 
     if conf.res_dir:
@@ -299,7 +289,7 @@ def fuzz(urls, paths, extensions, threads, ac=False ):
             os.mkdir(conf.res_dir + "/responses")
 
     if ac:
-        auto_calibration(urls, threads)
+        await auto_calibration(urls, threads)
 
     #stats
     stats = {
@@ -312,12 +302,12 @@ def fuzz(urls, paths, extensions, threads, ac=False ):
     st.start()
 
     task_iter = work_prod(urls, paths, extensions, True)
-    start_thread_pool(threads, worker)
+    await start_async_pool(threads, worker)
     #return all found results
     return results
 
 
-def main():
+async def main():
     global stats, task_iter
     args = parse_args(sys.argv[1:])
 
@@ -327,10 +317,10 @@ def main():
     paths = [l.strip() for l in args.paths_file]
     args.paths_file.close()
 
-    fuzz(urls, paths, conf.extensions, args.threads, args.ac)
+    await fuzz(urls, paths, conf.extensions, args.threads, args.ac)
 
     print('THE END', file=sys.stderr)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
