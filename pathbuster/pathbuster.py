@@ -22,7 +22,6 @@ print_locker = threading.Lock()
 preflight_iter = None
 task_iter = None
 preflight_samples = {} # for preflight results
-results = [] # for workers results
 err_table = dict()
 uniq_locs = set()
 
@@ -158,7 +157,6 @@ def worker_process(url, parent, redirect_count = 0):
         return
 
     if result_valid(res):
-        results.append(res)
         if conf.json_print:
             lprint(res.to_json(conf.store_response))
         else:
@@ -313,8 +311,6 @@ def fuzz(urls, paths, extensions, threads, ac=False ):
 
     task_iter = work_prod(urls, paths, extensions, True)
     start_thread_pool(threads, worker)
-    #return all found results
-    return results
 
 
 def main():
