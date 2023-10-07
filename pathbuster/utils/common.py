@@ -10,11 +10,17 @@ def random_str(length=30):
 
 
 def count_lines(text: str):
-    return len(text.splitlines())
+    if len(text) > 0:
+        return text.count("\n") + 1
+    else:
+        return 0
 
 
 def count_words(text: str):
-    return len(text.split(' '))
+    if len(text) > 0:
+        return text.count(" ") + 1
+    else:
+        return 0
 
 
 def md5str(s):
