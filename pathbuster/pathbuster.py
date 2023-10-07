@@ -300,7 +300,7 @@ async def fuzz(urls, paths, extensions, threads, ac=False ):
     await start_async_pool(threads, worker)
 
 
-async def main():
+def main():
     global stats, task_iter
     args = parse_args(sys.argv[1:])
 
@@ -310,10 +310,9 @@ async def main():
     paths = [l.strip() for l in args.paths_file]
     args.paths_file.close()
 
-    await fuzz(urls, paths, conf.extensions, args.threads, args.ac)
+    asyncio.run(fuzz(urls, paths, conf.extensions, args.threads, args.ac))
 
     print('THE END', file=sys.stderr)
 
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
