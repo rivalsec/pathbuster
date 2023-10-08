@@ -31,19 +31,20 @@ conf = Config()
 
 
 def work_prod(urls, paths, extensions = [''], update_stats=False):
-    for path in paths:
-        for ext in extensions:
-            p = path.lstrip('/')
-            if ext:
-                p += f".{ext.lstrip('.')}"
-            if update_stats:
-                stats['path'] = p
-            for url in urls:
+    with get_work_locker:
+        for path in paths:
+            for ext in extensions:
+                p = path.lstrip('/')
+                if ext:
+                    p += f".{ext.lstrip('.')}"
                 if update_stats:
-                    stats['reqs_done'] += 1
-                if url in err_table and err_table[url] >= conf.max_errors:
-                    continue
-                yield (url.rstrip('/') , p)
+                    stats['path'] = p
+                for url in urls:
+                    if update_stats:
+                        stats['reqs_done'] += 1
+                    if url in err_table and err_table[url] >= conf.max_errors:
+                        continue
+                    yield (url.rstrip('/') , p)
             
 
 def truncated_stream_res(s: requests.Response, max_size:int):
@@ -95,13 +96,7 @@ def save_res(s:Response):
 
 
 def preflight_worker():
-    while True:
-        with get_work_locker:
-            try:
-                url, path = next(preflight_iter)
-            except StopIteration:
-                return
-
+    for url, path in preflight_iter:
         try:
             res = process_url(f'{url}/{path}', url)
         except Exception as e:
@@ -179,12 +174,7 @@ def worker_process(url, parent, redirect_count = 0):
 
 
 def worker():
-    while True:
-        with get_work_locker:
-            try:
-                url, path = next(task_iter)
-            except StopIteration:
-                return
+    for url, path in task_iter:
         urlpath = f"{url}/{path}"
         worker_process(urlpath, url)
 
@@ -243,7 +233,7 @@ def parse_args(sys_args):
     if args.proxy:
         conf.proxies = {
             'http': 'http://' + args.proxy,
-            'https': 'https://' + args.proxy
+            'https': 'http://' + args.proxy
         }
 
     conf.headers["User-Agent"] = args.user_agent
