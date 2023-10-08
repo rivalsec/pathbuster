@@ -19,7 +19,7 @@ class Config:
         self.json_print = False
         self.follow_redirects = False
         self.max_redirects = 3
-        self.exclude_codes = [404,]
+        self.exclude_codes = []
         self.extensions = ['']
         self.stats = None
         self.res_dir = None
